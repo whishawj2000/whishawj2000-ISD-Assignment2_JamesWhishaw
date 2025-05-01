@@ -6,119 +6,152 @@ import os
 
 # Capture Packets Function
 def capture_packets(packet_count=10, output_file='packet_log.csv'):
-    sock = None # Initialize sock to None
-    captured_data = [] # Initialize captured_data
+    sock = None
+    captured_data = []
     try:
-        # Create socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
-        sock.bind(("0.0.0.0", 0)) # Bind
-        sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1) # Set option
+        sock.bind(("0.0.0.0", 0))
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
-        # Promiscuous mode setup (Windows)
         try:
-            if os.name == 'nt': # Check if OS is Windows
+            if os.name == 'nt':
                 sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
-        except (AttributeError, OSError): # Catch potential errors
+        except (AttributeError, OSError):
              if os.name == 'nt':
-                  # Warn if promiscuous mode fails on Windows
                   print("Warning: Could not enable promiscuous mode.")
 
         print(f"Capturing {packet_count} packets...")
 
-        # Capture loop
         for _ in range(packet_count):
-            try: # Added try/except around individual packet processing
-                packet = sock.recvfrom(65565) # Receive packet
+            try:
+                packet = sock.recvfrom(65565)
                 packet_data = packet[0]
 
-                # Check minimum IPv4 header length
                 if len(packet_data) >= 20:
                      try:
-                         # --- Refactored IP Extraction ---
-                         # Use standard socket function for conversion
                          source_ip = socket.inet_ntoa(packet_data[12:16])
                          destination_ip = socket.inet_ntoa(packet_data[16:20])
                          captured_data.append([source_ip, destination_ip])
-                         # ----------------------------------
                      except OSError:
-                         # Handle potential errors during IP conversion
                          print("\nWarning: Skipping packet, IP parsing error.")
-
             except socket.error as e:
-                 # Handle potential errors during socket.recvfrom
                  print(f"\nSocket error during packet receive: {e}")
 
-
-        # Check if any valid data was actually captured
         if captured_data:
             print(f"\nPacket capture completed. Saving {len(captured_data)} packets...")
             try:
-                # Save to CSV
                 with open(output_file, mode='w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(['Source IP', 'Destination IP']) # Header
-                    writer.writerows(captured_data) # Data
-                print(f"Data saved to {output_file}.") # Confirmation
+                    writer.writerow(['Source IP', 'Destination IP'])
+                    writer.writerows(captured_data)
+                print(f"Data saved to {output_file}.")
             except IOError as e:
-                # Handle file writing errors
                 print(f"Error saving data: {e}")
         else:
-             # Feedback if nothing was captured
             print("\nPacket capture completed. No valid packets captured.")
 
     except PermissionError:
-        # Clearer permission error message
         print("Permission denied: Please run the script as Administrator.")
-    except KeyboardInterrupt: # Added handler for Ctrl+C during capture
+    except KeyboardInterrupt:
          print("\nCapture interrupted by user.")
-    except socket.error as e: # Catch errors during initial socket setup
+    except socket.error as e:
          print(f"Socket setup error: {e}")
-    except Exception as e: # Catch other unexpected errors during setup
+    except Exception as e:
          print(f"An unexpected error occurred: {e}")
 
     finally:
-        if sock: # Check if socket was successfully created
+        if sock:
             try:
-                 # Attempt to disable promiscuous mode on Windows
                  if os.name == 'nt':
                      sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
             except (AttributeError, OSError):
-                 # Ignore errors if disabling fails
                  pass
             try:
-                 # Ensure the socket is closed
                  sock.close()
             except socket.error as e:
-                 # Report errors during socket closing
                  print(f"Error closing socket: {e}")
 
-# Display Packet Data
+
+# Display Packet Data (Improved)
 def display_data(file_path='packet_log.csv'):
+    # Check file existence first
     if not os.path.exists(file_path):
         print("No packet data found. Please capture packets first.")
         return
 
-    data = pd.read_csv(file_path)
-    print("\n--- Packet Data ---")
-    print(data)
+    try: # Add try/except around pandas operations
+        # Read the CSV data
+        data = pd.read_csv(file_path)
 
-# Visualize Packet Data
+        # --- Added Check for Empty DataFrame ---
+        # Checks if the file was read but contained no data rows
+        if data.empty:
+             print("Packet data file is empty.")
+        # ------------------------------------
+        else:
+             # Print data if not empty
+             print("\n--- Packet Data ---")
+             print(data)
+    except pd.errors.EmptyDataError:
+        # Specifically catch error if CSV file is completely empty (no columns/header)
+        print(f"Error: The file '{file_path}' is empty or improperly formatted.")
+    except Exception as e:
+        # Catch other potential errors during file read or display
+        print(f"Error reading or displaying data: {e}")
+
+
+# Visualize Packet Data (Improved)
 def visualize_data(file_path='packet_log.csv'):
+    # Check file existence first
     if not os.path.exists(file_path):
         print("No packet data found. Please capture packets first.")
         return
 
-    data = pd.read_csv(file_path)
-    ip_counts = data['Source IP'].value_counts()
+    try: # Add try/except around pandas and plotting operations
+        # Read the CSV data
+        data = pd.read_csv(file_path)
 
-    plt.figure(figsize=(10, 6))
-    ip_counts.plot(kind='bar')
-    plt.title('Packet Source IP Distribution')
-    plt.xlabel('Source IP Address')
-    plt.ylabel('Number of Packets')
-    plt.show()
+        # --- Added Check for Empty DataFrame ---
+        if data.empty:
+             print("Packet data file is empty, cannot visualize.")
+             return # Stop if no data
 
-# Command Line Interface
+        # --- Added Check for Required Column ---
+        # Ensure the column we need for visualisation actually exists
+        if 'Source IP' not in data.columns:
+             print("Error: 'Source IP' column not found in the data file.")
+             return # Stop if column missing
+        # ------------------------------------
+
+        # Calculate value counts for the 'Source IP'
+        ip_counts = data['Source IP'].value_counts()
+
+        # --- Added Check for Empty Results ---
+        # Check if counting resulted in any data (e.g., column exists but all values are null)
+        if ip_counts.empty:
+             print("No Source IP data available to visualize.")
+             return # Stop if no counts
+        # -----------------------------------
+
+        # Proceed with plotting if data is valid
+        plt.figure(figsize=(10, 6))
+        ip_counts.plot(kind='bar')
+        plt.title('Packet Source IP Distribution')
+        plt.xlabel('Source IP Address')
+        plt.ylabel('Number of Packets')
+        # Consider adding plt.tight_layout() for better spacing if labels overlap
+        plt.show() # Display the plot window
+    except pd.errors.EmptyDataError:
+         print(f"Error: The file '{file_path}' is empty or improperly formatted.")
+    except KeyError:
+         # This is another way the 'Source IP' column absence might manifest
+         print("Error: 'Source IP' column key not found during processing.")
+    except Exception as e:
+         # Catch other potential errors (plotting issues, etc.)
+         print(f"Error reading or visualizing data: {e}")
+
+
+# Command Line Interface (Improved Input Handling)
 def main():
     while True:
         print("\n--- Network Monitoring Tool ---")
@@ -131,10 +164,19 @@ def main():
 
         if choice == '1':
             try:
-                packet_count = int(input("Enter number of packets to capture: "))
-                capture_packets(packet_count)
+                # Get input for packet count
+                packet_count_str = input("Enter number of packets to capture: ")
+                packet_count = int(packet_count_str) # Convert to integer
+                # Add basic validation for the count
+                if packet_count <= 0:
+                    print("Invalid input: Please enter a positive number of packets.")
+                else:
+                    capture_packets(packet_count) # Call capture function
             except ValueError:
-                print("Invalid input. Please enter a number.")
+                # Handle non-numeric input
+                print("Invalid input. Please enter a whole number.")
+            # Consider adding other exception handling if needed
+
         elif choice == '2':
             display_data()
         elif choice == '3':
