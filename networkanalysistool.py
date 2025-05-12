@@ -5,7 +5,7 @@ import csv
 import os
 
 # Capture Packets Function
-def capture_packets(packet_count=10, output_file='packet_log.csv'):
+def capture_packets(packet_count=10, output_file='C:\\Users\\james\Downloads\\packet_log.csv'):
     sock = None
     captured_data = []
     try:
@@ -73,7 +73,7 @@ def capture_packets(packet_count=10, output_file='packet_log.csv'):
 
 
 # Display Packet Data (Improved)
-def display_data(file_path='packet_log.csv'):
+def display_data(file_path='C:\\Users\\james\Downloads\\packet_log.csv'):
     # Check file existence first
     if not os.path.exists(file_path):
         print("No packet data found. Please capture packets first.")
@@ -101,7 +101,7 @@ def display_data(file_path='packet_log.csv'):
 
 
 # Visualize Packet Data (Improved)
-def visualize_data(file_path='packet_log.csv'):
+def visualize_data(file_path='C:\\Users\\james\Downloads\\packet_log.csv'):
     # Check file existence first
     if not os.path.exists(file_path):
         print("No packet data found. Please capture packets first.")
